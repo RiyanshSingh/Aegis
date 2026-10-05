@@ -45,62 +45,57 @@ class AppUpdateService {
 
   /// Check GitHub releases for an update
   Future<AppUpdateInfo?> checkUpdate() async {
-    try {
-      final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version; // e.g. "1.0.0"
+    final packageInfo = await PackageInfo.fromPlatform();
+    final currentVersion = packageInfo.version.trim();
 
-      final repo = await getRepo();
-      final url = Uri.parse('https://api.github.com/repos/$repo/releases/latest');
+    final repo = await getRepo();
+    final url = Uri.parse('https://api.github.com/repos/$repo/releases/latest');
 
-      final response = await http.get(url, headers: {
-        'Accept': 'application/vnd.github.v3+json',
-      }).timeout(const Duration(seconds: 8));
+    final response = await http.get(url, headers: {
+      'Accept': 'application/vnd.github.v3+json',
+      'User-Agent': 'AegisVaultApp/1.0',
+    }).timeout(const Duration(seconds: 10));
 
-      if (response.statusCode != 200) {
-        debugPrint('[AppUpdateService] GitHub API status: ${response.statusCode}');
-        return null;
-      }
-
-      final data = jsonDecode(response.body) as Map<String, dynamic>;
-      final rawTag = data['tag_name'] as String? ?? '';
-      final latestVersion = rawTag.replaceAll(RegExp(r'^[vV]'), '').trim();
-
-      if (!_isVersionGreater(latestVersion, currentVersion)) {
-        return null; // Already up to date
-      }
-
-      final releaseName = data['name'] as String? ?? 'Version $latestVersion';
-      final changelog = data['body'] as String? ?? 'Performance improvements and bug fixes.';
-      final htmlUrl = data['html_url'] as String? ?? 'https://github.com/$repo/releases/latest';
-
-      String downloadUrl = htmlUrl;
-      final assets = data['assets'] as List<dynamic>? ?? [];
-      for (final asset in assets) {
-        final name = (asset['name'] as String? ?? '').toLowerCase();
-        if (name.endsWith('.apk')) {
-          downloadUrl = asset['browser_download_url'] as String? ?? downloadUrl;
-          break;
-        }
-      }
-
-      DateTime? published;
-      if (data['published_at'] != null) {
-        published = DateTime.tryParse(data['published_at']);
-      }
-
-      return AppUpdateInfo(
-        latestVersion: latestVersion,
-        currentVersion: currentVersion,
-        title: releaseName,
-        changelog: changelog,
-        downloadUrl: downloadUrl,
-        htmlUrl: htmlUrl,
-        publishedAt: published,
-      );
-    } catch (e) {
-      debugPrint('[AppUpdateService] Error checking for updates: $e');
-      return null;
+    if (response.statusCode != 200) {
+      throw Exception('Server returned ${response.statusCode}');
     }
+
+    final data = jsonDecode(response.body) as Map<String, dynamic>;
+    final rawTag = data['tag_name'] as String? ?? '';
+    final latestVersion = rawTag.replaceAll(RegExp(r'^[vV]'), '').trim();
+
+    if (!_isVersionGreater(latestVersion, currentVersion)) {
+      return null; // Truly up to date
+    }
+
+    final releaseName = data['name'] as String? ?? 'Version $latestVersion';
+    final changelog = data['body'] as String? ?? 'Performance improvements and bug fixes.';
+    final htmlUrl = data['html_url'] as String? ?? 'https://github.com/$repo/releases/latest';
+
+    String downloadUrl = htmlUrl;
+    final assets = data['assets'] as List<dynamic>? ?? [];
+    for (final asset in assets) {
+      final name = (asset['name'] as String? ?? '').toLowerCase();
+      if (name.endsWith('.apk')) {
+        downloadUrl = asset['browser_download_url'] as String? ?? downloadUrl;
+        break;
+      }
+    }
+
+    DateTime? published;
+    if (data['published_at'] != null) {
+      published = DateTime.tryParse(data['published_at']);
+    }
+
+    return AppUpdateInfo(
+      latestVersion: latestVersion,
+      currentVersion: currentVersion,
+      title: releaseName,
+      changelog: changelog,
+      downloadUrl: downloadUrl,
+      htmlUrl: htmlUrl,
+      publishedAt: published,
+    );
   }
 
   /// Shows the update popup dialog if a new version is found
@@ -121,9 +116,10 @@ class AppUpdateService {
           onUpToDate();
         }
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[AppUpdateService] Check update error: $e');
       if (!silent && onError != null) {
-        onError('Unable to check for updates. Please check your internet connection.');
+        onError('Unable to reach update server. Please check your internet connection.');
       }
     }
   }
@@ -315,8 +311,11 @@ class AppUpdateService {
   /// Helper: compares semantic versions e.g. "1.0.1" > "1.0.0"
   bool _isVersionGreater(String remote, String local) {
     try {
-      final rParts = remote.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-      final lParts = local.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final cleanRemote = remote.replaceAll(RegExp(r'^[vV]'), '').split('+').first.split('-').first.trim();
+      final cleanLocal = local.replaceAll(RegExp(r'^[vV]'), '').split('+').first.split('-').first.trim();
+
+      final rParts = cleanRemote.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+      final lParts = cleanLocal.split('.').map((e) => int.tryParse(e) ?? 0).toList();
 
       while (rParts.length < 3) {
         rParts.add(0);

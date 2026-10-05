@@ -12,6 +12,7 @@ import 'package:local_auth/local_auth.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'services/google_drive_service.dart';
 import 'services/vault_crypto.dart';
 import 'services/app_update_service.dart';
@@ -1375,6 +1376,7 @@ class _SettingsViewState extends State<SettingsView> {
   String? _lastSyncText;
   bool _isGoogleDriveBusy = false;
   bool _isCheckingUpdates = false;
+  String _appVersion = '1.0.0';
 
   @override
   void initState() {
@@ -1396,6 +1398,13 @@ class _SettingsViewState extends State<SettingsView> {
         _lastSyncText = lastSync;
       });
     }
+
+    try {
+      final info = await PackageInfo.fromPlatform();
+      if (mounted) {
+        setState(() => _appVersion = info.version);
+      }
+    } catch (_) {}
 
     try {
       final account = await GoogleDriveService.instance.initSilentSignIn();
@@ -3006,7 +3015,7 @@ class _SettingsViewState extends State<SettingsView> {
         _buildSettingsTile(
           context,
           title: 'Check for Updates',
-          subtitle: 'Aegis Vault v1.0.0',
+          subtitle: 'Aegis Vault v$_appVersion',
           icon: Icons.system_update_rounded,
           trailing: _isCheckingUpdates
               ? const SizedBox(
