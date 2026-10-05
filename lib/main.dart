@@ -1374,6 +1374,7 @@ class _SettingsViewState extends State<SettingsView> {
   String? _googleEmail;
   String? _lastSyncText;
   bool _isGoogleDriveBusy = false;
+  bool _isCheckingUpdates = false;
 
   @override
   void initState() {
@@ -3005,28 +3006,47 @@ class _SettingsViewState extends State<SettingsView> {
         _buildSettingsTile(
           context,
           title: 'Check for Updates',
-          subtitle: 'Aegis Vault v1.0.0 • Tap to check latest release',
+          subtitle: 'Aegis Vault v1.0.0',
           icon: Icons.system_update_rounded,
-          onTap: () async {
-            showLuxuryNotification(
-              context,
-              title: 'Checking for Updates',
-              message: 'Connecting to GitHub releases...',
-              icon: Icons.sync_rounded,
-            );
-            await AppUpdateService.instance.checkForUpdate(
-              context,
-              silent: false,
-              onUpToDate: () {
-                showLuxuryNotification(
-                  context,
-                  title: 'App Up to Date',
-                  message: 'You are on the latest version of Aegis.',
-                  icon: Icons.check_circle_rounded,
-                );
-              },
-            );
-          },
+          trailing: _isCheckingUpdates
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : null,
+          onTap: _isCheckingUpdates
+              ? null
+              : () async {
+                  setState(() => _isCheckingUpdates = true);
+                  await AppUpdateService.instance.checkForUpdate(
+                    context,
+                    silent: false,
+                    onUpToDate: () {
+                      if (mounted) {
+                        showLuxuryNotification(
+                          context,
+                          title: 'Aegis is Up to Date',
+                          message: 'You have the latest version installed.',
+                          icon: Icons.check_circle_rounded,
+                        );
+                      }
+                    },
+                    onError: (err) {
+                      if (mounted) {
+                        showLuxuryNotification(
+                          context,
+                          title: 'Update Check Failed',
+                          message: err,
+                          isError: true,
+                        );
+                      }
+                    },
+                  );
+                  if (mounted) {
+                    setState(() => _isCheckingUpdates = false);
+                  }
+                },
         ),
       ],
     );

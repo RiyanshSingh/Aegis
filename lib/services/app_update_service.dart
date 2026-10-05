@@ -104,15 +104,26 @@ class AppUpdateService {
   }
 
   /// Shows the update popup dialog if a new version is found
-  Future<void> checkForUpdate(BuildContext context, {bool silent = true, VoidCallback? onUpToDate}) async {
-    final update = await checkUpdate();
-    if (!context.mounted) return;
+  Future<void> checkForUpdate(
+    BuildContext context, {
+    bool silent = true,
+    VoidCallback? onUpToDate,
+    void Function(String message)? onError,
+  }) async {
+    try {
+      final update = await checkUpdate();
+      if (!context.mounted) return;
 
-    if (update != null) {
-      showUpdateDialog(context, update);
-    } else if (!silent) {
-      if (onUpToDate != null) {
-        onUpToDate();
+      if (update != null) {
+        showUpdateDialog(context, update);
+      } else if (!silent) {
+        if (onUpToDate != null) {
+          onUpToDate();
+        }
+      }
+    } catch (_) {
+      if (!silent && onError != null) {
+        onError('Unable to check for updates. Please check your internet connection.');
       }
     }
   }
